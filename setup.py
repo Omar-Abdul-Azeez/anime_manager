@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='anime_manager',
-    version='1.0',
+    version='1.0.0',
     packages=['anime'],
     url='https://github.com/Omar-Abdul-Azeez/anime_manager',
     install_requires=[

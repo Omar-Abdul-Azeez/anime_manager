@@ -30,6 +30,7 @@ jobs:
 #        pytest
     - name: Release
       uses: softprops/action-gh-release@v2
+      make_latest: true
       with:
           files: |
             dist/anime_manager-1.0-py3-none-any.whl
