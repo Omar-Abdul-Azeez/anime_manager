@@ -35,4 +35,4 @@ jobs:
       with:
         make_latest: true
         files: |
-          ./dist/anime_manager-${{ github.ref_name }}-py3-none-any.whl
+          dist/anime_manager-*.*.*-py3-none-any.whl
