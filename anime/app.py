@@ -182,6 +182,7 @@ def run(ids, titles, covers, links):
     dialog = RSS_Manger(ids, titles, covers, links)
     dialog.show()
     app.exec_()
+    dialog.destroy()
     if 'answers' not in globals():
         return None
     else:

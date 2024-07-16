@@ -1,10 +1,4 @@
 from setuptools import setup
-from setuptools.dist import Distribution
-
-
-class BinaryDistribution(Distribution):
-    def has_ext_modules(self):
-        return True
 
 
 setup(
@@ -21,7 +15,6 @@ setup(
     ],
     python_requires=">=3.8.0",
     author="Omar Abdul'Azeez",
-    distclass=BinaryDistribution,
     entry_points={
         "console_scripts": [
             "anime=anime.__main__:main",

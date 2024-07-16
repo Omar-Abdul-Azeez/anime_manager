@@ -171,9 +171,10 @@ def extract_episode_number(file, title=None, log=False):
 
 
 def ep_follows_template(string, title, ext, lang, digits=None):
-    num = r'(\d+)'
+    num = r'(\d+(-\d+)*)'
     if digits:
-        num = '(' + r'\d'*digits + ')'
+        num = r'\d'*digits
+        num = '(' + num + '(-' + num + ')*)'
     pattern = ep_filename(regex.escape(title), num, regex.escape(ext), lang)
     ptn = regex.compile(pattern)
     match = regex.fullmatch(ptn, string)
@@ -224,28 +225,32 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
             cover = media["coverImage"]["extraLarge"]
             if lang is Lang.NATIVE:
                 title = media['title']['native']
-                logger_module.info('Chosen: "%s"', title)
+                if title is None:
+                    logger_module.warning('No native title found, falling back to romaji.')
+                    title = media['title']['romaji']
+                logger_module.info('Chosen: "%s" as title.', title)
                 title = special_chars(title, replace=True)
-                logger_module.info('Using "%s" for IO operations.', title)
             elif lang is Lang.ROMAJI:
                 title = media['title']['romaji']
-                logger_module.info('Chosen: "%s"', title)
+                logger_module.info('Chosen: "%s" as title.', title)
                 title = special_chars(title, replace=False)
-                logger_module.info('Using "%s" for IO operations.', title)
             elif lang is Lang.ENGLISH:
                 title = media['title']['english']
-                logger_module.info('Chosen: "%s"', title)
+                if title is None:
+                    logger_module.warning('No english title found, falling back to romaji.')
+                    title = media['title']['romaji']
+                logger_module.info('Chosen: "%s" as title.', title)
                 title = special_chars(title, replace=False)
-                logger_module.info('Using "%s" for IO operations.', title)
+            logger_module.debug('Using "%s" for IO operations.', title)
             if os.path.basename(dir) != title:
                 temp = title
                 if os.path.exists(os.path.join(root, temp)):
                     temp = f'[{id}] {temp}'
                 if os.path.basename(dir) != temp:
-                    logger_module.info('Folder "%s" not "%s"', folder, title if os.path.basename(dir).lower() == temp.lower() else temp)
+                    logger_module.debug('Folder "%s" not "%s"', folder, title if os.path.basename(dir).lower() == temp.lower() else temp)
                     ico_path = os.path.join(dir, (folder if match_id is None else folder[len(match_id):]) + '.ico')
                     if os.path.exists(ico_path):
-                        logger_module.info('Icon with old name exists. Deleting...')
+                        logger_module.debug('Icon with old name exists. Deleting...')
                         os.remove(ico_path)
                     os.renames(dir, os.path.join(root, temp))
                     folder = temp
@@ -282,43 +287,41 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
             shift_val[ext] = 0
             missings[ext] = []
             files = [file for file in files if os.path.splitext(file)[1] in related_exts]
-        files.sort(key=lambda x: natsort.natsort_key(str(int(extract_episode_number(x, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1]))))
+        files.sort(key=lambda x: natsort.natsort_key(str(int(extract_episode_number(x, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1].split('-')[0]))))
         for file in files:
             ext = os.path.splitext(file)[1]
             tmp[ext].append(file)
-            num = int(extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1])
-            if num > limits[ext]['max']:
-                limits[ext]['max'] = num
-                limits[ext]['digits'] = len(str(num))
-            if num < limits[ext]['min']:
-                limits[ext]['min'] = num
+            n = list(map(int, extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1].split('-')))
+            for num in n:
+                if num > limits[ext]['max']:
+                    limits[ext]['max'] = num
+                    limits[ext]['digits'] = len(str(num))
+                if num < limits[ext]['min']:
+                    limits[ext]['min'] = num
         files = tmp
         for ext, v in files.items():
             if len(v) == 0:
                 continue
-            if not (limits[ext]['min'] == 0 or limits[ext]['max'] == len(v) - 1) and not (limits[ext]['min'] == 1 or limits[ext]['max'] == len(v)):
-                shift_val[ext] = limits[ext]['min'] - 1
-                if shift:
-                    limits[ext]['digits'] = len(str(limits[ext]['max'] - shift_val[ext]))
-                else:
-                    logger_module.warning('"*%s" are shifted by %d!', ext, shift_val[ext])
             if limits[ext]['max'] - limits[ext]['min'] + 1 > len(v):
                 missing = limits[ext]['min']
                 for file in v:
-                    num = int(extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1])
-                    while missing != num:
-                        missings[ext].append(missing)
+                    n = list(map(int, extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):])[1].split('-')))
+                    for num in n:
+                        while missing != num:
+                            missings[ext].append(missing)
+                            missing += 1
                         missing += 1
-                    missing += 1
-                logger_module.warning('Missing "*%s" found at %s!', ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
+                logger_module.warning('"%s" : Missing "*%s" found at %s!', title, ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
 
         for ext, v in files.items():
             for file in v:
                 if (shift and shift_val[ext] != 0) or not ep_follows_template(file, title, ext, lang, digits=limits[ext]['digits']):
-                    episode = str(int(extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):], log=True)[1]))
-                    if shift:
-                        episode = str(int(episode) - shift_val[ext])
-                    episode = '0'*(limits[ext]['digits'] - len(episode)) + episode
+                    episode = list(map(int, extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):], log=True)[1].split('-')))
+                    for i in range(len(episode)):
+                        if shift:
+                            episode[i] = str(episode[i] - shift_val[ext])
+                        episode[i] = '0'*(limits[ext]['digits'] - len(str(episode[i]))) + str(episode[i])
+                    episode = '-'.join(episode)
                     os.rename(os.path.join(root, folder, file), os.path.join(root, folder, ep_filename(title, episode, ext, lang)))
     logger_module.info('Finished tidying library.')
 
@@ -327,20 +330,20 @@ def create_watching_dir(uid='None', root='.', lang=Lang.NATIVE):
     logger_module.info("Creating current season's folders with lang=%s...", lang)
 
     if os.path.exists('response.json'):
-        logger_module.info('"response.json" found! Using local data.')
+        logger_module.debug('"response.json" found! Using local data.')
         with open('response.json', 'r', encoding='utf-8') as f:
             medias = json.load(f)
     else:
-        logger_module.info('No "response.json" found. Requesting from API...')
+        logger_module.debug('No "response.json" found. Requesting from API...')
         medias = anilist_api.get_current_anime(uid=uid, dump=True)
     for media in medias:
         id = str(media['id'])
         if lang is Lang.NATIVE:
-            title = special_chars(media['title']['native'], replace=True)
+            title = special_chars(media['title']['native'] if media['title']['native'] is not None else media['title']['romaji'], replace=True)
         elif lang is Lang.ROMAJI:
             title = special_chars(media['title']['romaji'], replace=False)
         elif lang is Lang.ENGLISH:
-            title = special_chars(media['title']['english'], replace=False)
+            title = special_chars(media['title']['english'] if media['title']['english'] is not None else media['title']['romaji'], replace=False)
         folder = title
         logger_module.info('Processing "%s"', title)
         if os.path.exists(os.path.join(root, folder)):
@@ -349,12 +352,12 @@ def create_watching_dir(uid='None', root='.', lang=Lang.NATIVE):
                 logger_module.warning('Unknown folder "%s" exists! Please remove.', folder)
                 continue
             elif temp == id:
-                logger_module.info('Using "%s" for IO operations.', folder)
+                logger_module.debug('Using "%s" for IO operations.', folder)
                 if os.path.exists(os.path.join(root, folder, "desktop.ini")):
                     continue
             else:
                 folder = f'[{id}] {title}'
-                logger_module.info('Using "%s" for IO operations.', folder)
+                logger_module.debug('Using "%s" for IO operations.', folder)
                 if os.path.exists(os.path.join(root, folder, "desktop.ini")):
                     continue
         banner = media['bannerImage']
@@ -401,11 +404,11 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
         feed_group = feeds['Anime Manager']
     ids = [str(media['id']) for media in medias]
     if lang is Lang.NATIVE:
-        titles = [media['title']['native'] for media in medias]
+        titles = [media['title']['native'] if media['title']['native'] is not None else media['title']['romaji'] for media in medias]
     elif lang is Lang.ROMAJI:
         titles = [media['title']['romaji'] for media in medias]
     elif lang is Lang.ENGLISH:
-        titles = [media['title']['english'] for media in medias]
+        titles = [media['title']['english'] if media['title']['english'] is not None else media['title']['romaji'] for media in medias]
     covers = [os.path.join(save_loc, titles[i], 'Cover', str(ids[i]) + 'c.png') for i in range(len(ids))]
     links = [''] * len(ids)
     for k, v in list(feed_group.items()):
@@ -413,7 +416,7 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
             i = ids.index(k)
             links[i] = v['url']
         except ValueError:
-            logger_module.info('Deleting RSS for [%s]', k)
+            logger_module.warning('Deleting RSS for [%s]', k)
             del feed_group[k]
             del dl_rules[k]
     links = app.run(ids, titles, covers, links)
@@ -424,7 +427,7 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
         if links[i] == '':
             continue
         if ids[i] not in feed_group.keys():
-            logger_module.info('Creating RSS for "[%s] %s"', ids[i], titles[i])
+            logger_module.warning('Creating RSS for "[%s] %s"', ids[i], titles[i])
             feed_group[ids[i]] = {}
             dl_rules[ids[i]] = {'addPaused': True,
                                 'affectedFeeds': None,
@@ -442,7 +445,7 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
                                 'useRegex': False
                                 }
         else:
-            logger_module.info('Updating RSS for "[%s] %s"', ids[i], titles[i])
+            logger_module.debug('Updating RSS for "[%s] %s"', ids[i], titles[i])
         dl_rules[ids[i]]['savePath'] = os.path.join(save_loc, titles[i])
         dl_rules[ids[i]]['affectedFeeds'] = [links[i]]
         feed_group[ids[i]]['url'] = links[i]
@@ -534,44 +537,42 @@ def tidy_episodes(uid='None', files=None, root='.', lang=Lang.NATIVE, shift=Fals
                 limits[ext] = {'min': math.inf, 'max': 0, 'digits': 0}
                 shift_val[ext] = 0
                 missings[ext] = []
-            ffile.sort(key=lambda x: natsort.natsort_key(str(int(extract_episode_number(x, folder)[1]))))
+            ffile.sort(key=lambda x: natsort.natsort_key(str(int(extract_episode_number(x, folder)[1].split('-')[0]))))
             for file in ffile:
                 ext = os.path.splitext(file)[1]
                 if ext in related_exts:
                     tmp[ext].append(file)
-                    num = int(extract_episode_number(file, folder)[1])
-                    if num > limits[ext]['max']:
-                        limits[ext]['max'] = num
-                        limits[ext]['digits'] = len(str(num))
-                    if num < limits[ext]['min']:
-                        limits[ext]['min'] = num
+                    n = list(map(int, extract_episode_number(file, folder)[1].split('-')))
+                    for num in n:
+                        if num > limits[ext]['max']:
+                            limits[ext]['max'] = num
+                            limits[ext]['digits'] = len(str(num))
+                        if num < limits[ext]['min']:
+                            limits[ext]['min'] = num
             ffile = tmp
             for ext, v in ffile.items():
                 if len(v) == 0:
                     continue
-                if not (limits[ext]['min'] == 0 or limits[ext]['max'] == len(v) - 1) and not (limits[ext]['min'] == 1 or limits[ext]['max'] == len(v)):
-                    shift_val[ext] = limits[ext]['min'] - 1
-                    if shift:
-                        limits[ext]['digits'] = len(str(limits[ext]['max'] - shift_val[ext]))
-                    else:
-                        logger_module.warning('"%s" "*%s" are shifted by %d!', folder, ext, shift_val[ext])
                 if limits[ext]['max'] - limits[ext]['min'] + 1 > len(v):
                     missing = limits[ext]['min']
                     for file in v:
-                        num = int(extract_episode_number(file, folder)[1])
-                        while missing != num:
-                            missings[ext].append(missing)
+                        n = list(map(int, extract_episode_number(file, folder)[1].split('-')))
+                        for num in n:
+                            while missing != num:
+                                missings[ext].append(missing)
+                                missing += 1
                             missing += 1
-                        missing += 1
-                    logger_module.warning('"%s" missing "*%s" found at %s!', folder, ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
+                    logger_module.warning('"%s" : missing "*%s" found at %s!', folder, ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
 
             for ext, v in ffile.items():
                 for file in v:
                     if (shift and shift_val[ext] != 0) or not ep_follows_template(file, folder, ext, lang, digits=limits[ext]['digits']):
-                        episode = str(int(extract_episode_number(file, folder, log=True)[1]))
-                        if shift:
-                            episode = str(int(episode) - shift_val[ext])
-                        episode = '0' * (limits[ext]['digits'] - len(episode)) + episode
+                        episode = list(map(int, extract_episode_number(file, folder, log=True)[1].split('-')))
+                        for i in range(len(episode)):
+                            if shift:
+                                episode[i] = str(episode[i] - shift_val[ext])
+                            episode[i] = '0'*(limits[ext]['digits'] - len(str(episode[i]))) + str(episode[0])
+                        episode = '-'.join(episode)
                         os.rename(os.path.join(root, folder, file), os.path.join(root, folder, ep_filename(folder, episode, ext, lang)))
 
     if len(files) != 0:
@@ -597,12 +598,12 @@ def update_tsumi(customlist, auth=None, root='.'):
     next(walkie)
     ids = dict()
     complets = dict()
-    logger_module.debug('Collecting anime ids...')
+    logger_module.info('Collecting anime ids...')
     for _, _, files in walkie:
         id = next(filter(lambda x: regex.match(r'^\d+$', x) is not None, files), None)
         if id is not None:
             ids[int(id)] = 0
-    logger_module.debug('Requesting anime list entries...')
+    logger_module.info('Requesting anime list entries...')
     entries = anilist_api.get_anime_entires(list(ids.keys()))
     for entry in entries:
         if (entry['status'] != 'PLANNING' and entry['status'] != 'PAUSED') and entry['customLists'][customlist]:
@@ -612,13 +613,13 @@ def update_tsumi(customlist, auth=None, root='.'):
             del ids[entry['mediaId']]
         else:
             ids[entry['mediaId']] = [entry['id'], [k for k, v in entry['customLists'].items() if k == customlist or v]]
-    logger_module.debug('Removing completed anime from list...')
+    logger_module.info('Removing completed anime from list...')
     for mediaId, v in complets.items():
         success = anilist_api.add_anime_to_customlists(v[0], v[1])
         if not success:
             logger_module.error('Updating on-hand library to "%s" list failed!', customlist)
             return
-    logger_module.debug('Adding tsumi anime to list...')
+    logger_module.info('Adding on-hand anime to list...')
     for mediaId, v in ids.items():
         if v == 0:
             success = anilist_api.add_anime_to_customlists(mediaId, [customlist], is_mediaId=True)
