@@ -7,7 +7,7 @@ Anime library manager. Helps keep library in a uniform structure. folder templat
 
 ## Install
 
-```pip install .\dist\anime_manager-1.0-cp311-cp311-win_amd64.whl```
+```pip install .\dist\anime_manager-1.0-py3-none-any.whl```
 
 ## Usage & Help
 
