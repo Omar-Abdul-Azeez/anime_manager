@@ -139,20 +139,24 @@ def cover_folder(pic, root, title):
     subprocess.check_call('attrib +h \"{}\"'.format(os.path.join(root, title + ".ico")))
 
 
-def extract_episode_number(file, title=None, log=False):
-    ptn_se = regex.compile(pattern_se, regex.IGNORECASE)
+def clean_name(name, title=None, log=False):
     ptn_ex = regex.compile(pattern_ex, regex.IGNORECASE)
-    file_edited = file
     if log:
-        logger_regex.info('String: %s', file_edited)
+        logger_regex.info('String: %s', name)
     if title is not None:
-        file_edited = regex.sub(regex.compile(r'[. x_-]?'.join(map(regex.escape, regex.sub(regex.compile(r'[_-]'), ' ', title).split()))), '', file_edited)
+        name = regex.sub(regex.compile(r'[. x_-]?'.join(map(regex.escape, regex.sub(regex.compile(r'[_-]'), ' ', title).split()))), '', name)
         if log:
             logger_regex.info('Title to remove: %s', title)
-            logger_regex.info('Result: %s', file_edited)
-    file_edited = regex.sub(ptn_ex, '', file_edited)
+            logger_regex.info('Result: %s', name)
+    name = regex.sub(ptn_ex, '', name)
     if log:
-        logger_regex.info('Cleaned-up result: %s', file_edited)
+        logger_regex.info('Cleaned-up result: %s', name)
+    return name
+
+
+def extract_episode_number(file, title=None, log=False):
+    ptn_se = regex.compile(pattern_se, regex.IGNORECASE)
+    file_edited = clean_name(file, title=title, log=log)
     matches = list(regex.finditer(ptn_se, file_edited, overlapped=True))
     if log:
         logger_regex.info('Matches: %s', matches)
@@ -193,7 +197,9 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
     next(walkie)
     for dir, _, files in walkie:
         folder = os.path.basename(dir)
+        clean_folder = clean_name(folder)
         logger_module.info('Processing "%s"', folder)
+        logger_module.info('Cleaned-up: %s', clean_folder)
         id = next(filter(lambda x: regex.match(r'^\d+$', x) is not None, files), None)
         if id is not None:
             logger_module.info('Found ID file: "%s"', id)
@@ -218,7 +224,7 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
             if id is not None:
                 media = anilist_api.get_anime(ids=int(id))
             else:
-                media = anilist_api.get_anime(search=folder, auto=auto, lang=lang)
+                media = anilist_api.get_anime(search=clean_folder, auto=auto, lang=lang)
 
             id = str(media['id'])
             banner = media['bannerImage']
