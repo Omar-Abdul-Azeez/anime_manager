@@ -159,9 +159,11 @@ headers = None
 user = 'None'
 
 
-def request(query, variables=None):
+def request(query, headers_l=None, variables=None):
     next(API_limit)
-    response = network.request(endpoint, headers=headers, json={'query': query, 'variables': variables})
+    if headers_l is None:
+        headers_l = headers
+    response = network.request(endpoint, headers=headers_l, json={'query': query, 'variables': variables})
     if "errors" in response.keys():
         for err in response["errors"]:
             logger_anilist.error('API response NOT OK! Status code = %d  "%s" %s', err["status"], err["message"], str(err['locations'][0]))
@@ -176,14 +178,13 @@ def get_auth():
 
 def set_auth(auth):
     global headers, user
-    tmp = headers
-    headers = {'Authorization': 'Bearer ' + auth,
+    tmp = {'Authorization': 'Bearer ' + auth,
                'Content-Type': 'application/json',
                'Accept': 'application/json'}
-    result = request(check_login)
+    result = request(check_login, headers_l=tmp)
     if result is None:
-        headers = tmp
         return False
+    headers = tmp
     user = result['Viewer']['id']
     return True
 

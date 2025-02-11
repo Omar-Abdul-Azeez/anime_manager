@@ -301,9 +301,11 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
             for num in n:
                 if num > limits[ext]['max']:
                     limits[ext]['max'] = num
-                    limits[ext]['digits'] = len(str(num))
                 if num < limits[ext]['min']:
                     limits[ext]['min'] = num
+            if shift:
+                shift_val[ext] = max(0, limits[ext]['min'] - 1)
+            limits[ext]['digits'] = len(str(limits[ext]['max'] - shift_val[ext]))
         files = tmp
         for ext, v in files.items():
             if len(v) == 0:
@@ -317,15 +319,14 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
                             missings[ext].append(missing)
                             missing += 1
                         missing += 1
-                logger_module.warning('"%s" : Missing "*%s" found at %s!', title, ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
+                logger_module.warning('"%s" : Missing "*%s" found at %s!', title, ext, str(list(map(lambda num: num - shift_val[ext], missings[ext]))))
 
         for ext, v in files.items():
             for file in v:
-                if (shift and shift_val[ext] != 0) or not ep_follows_template(file, title, ext, lang, digits=limits[ext]['digits']):
+                if shift_val[ext] != 0 or not ep_follows_template(file, title, ext, lang, digits=limits[ext]['digits']):
                     episode = list(map(int, extract_episode_number(file, os.path.basename(dir) if match_id is None else os.path.basename(dir)[len(match_id):], log=True)[1].split('-')))
                     for i in range(len(episode)):
-                        if shift:
-                            episode[i] = str(episode[i] - shift_val[ext])
+                        episode[i] = str(episode[i] - shift_val[ext])
                         episode[i] = '0'*(limits[ext]['digits'] - len(str(episode[i]))) + str(episode[i])
                     episode = '-'.join(episode)
                     os.rename(os.path.join(root, folder, file), os.path.join(root, folder, ep_filename(title, episode, ext, lang)))
@@ -552,9 +553,11 @@ def tidy_episodes(uid='None', files=None, root='.', lang=Lang.NATIVE, shift=Fals
                     for num in n:
                         if num > limits[ext]['max']:
                             limits[ext]['max'] = num
-                            limits[ext]['digits'] = len(str(num))
                         if num < limits[ext]['min']:
                             limits[ext]['min'] = num
+                    if shift:
+                        shift_val[ext] = max(0, limits[ext]['min'] - 1)
+                    limits[ext]['digits'] = len(str(limits[ext]['max'] - shift_val[ext]))
             ffile = tmp
             for ext, v in ffile.items():
                 if len(v) == 0:
@@ -568,11 +571,11 @@ def tidy_episodes(uid='None', files=None, root='.', lang=Lang.NATIVE, shift=Fals
                                 missings[ext].append(missing)
                                 missing += 1
                             missing += 1
-                    logger_module.warning('"%s" : missing "*%s" found at %s!', folder, ext, str(list(map(lambda num: num - (shift_val[ext] if shift else 0), missings[ext]))))
+                    logger_module.warning('"%s" : missing "*%s" found at %s!', folder, ext, str(list(map(lambda num: num - shift_val[ext], missings[ext]))))
 
             for ext, v in ffile.items():
                 for file in v:
-                    if (shift and shift_val[ext] != 0) or not ep_follows_template(file, folder, ext, lang, digits=limits[ext]['digits']):
+                    if shift_val[ext] != 0 or not ep_follows_template(file, folder, ext, lang, digits=limits[ext]['digits']):
                         episode = list(map(int, extract_episode_number(file, folder, log=True)[1].split('-')))
                         for i in range(len(episode)):
                             if shift:
