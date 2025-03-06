@@ -162,12 +162,8 @@ user = 'None'
 def request(query, headers_l=None, variables=None):
     next(API_limit)
     if headers_l is None:
-        if headers is None:
-            response = network.request(endpoint, json={'query': query, 'variables': variables})
-        else:
-            response = network.request(endpoint, headers=headers, json={'query': query, 'variables': variables})
-    else:
-        response = network.request(endpoint, headers=headers_l, json={'query': query, 'variables': variables})
+        headers_l = headers
+    response = network.request(endpoint, headers=headers_l, json={'query': query, 'variables': variables})
     if "errors" in response.keys():
         for err in response["errors"]:
             logger_anilist.error('API response NOT OK! Status code = %d  "%s" %s', err["status"], err["message"], str(err['locations'][0]))
@@ -202,7 +198,7 @@ def get_current_anime(uid='None', dump=False):
         uid = user
     variables = {'uid': uid}
     next(API_limit)
-    response = request(query_current, variables)
+    response = request(query=query_current, variables=variables)
     response = response['MediaListCollection']['lists'][0]['entries']
     medias = [entry['media'] for entry in response if entry['media']['status'] == 'RELEASING']
     if dump:
@@ -219,24 +215,24 @@ def get_anime(search=None, ids=None, auto=True, lang=Lang.NATIVE, dump=False):
         if isinstance(ids, int):
             variables['id'] = ids
 
-            response = request(query_anime, variables)
+            response = request(query=query_anime, variables=variables)
             media = response["Page"]["media"][0]
         else:
             variables['ids'] = ids
 
-            response = request(query_anime, variables)
+            response = request(query=query_anime, variables=variables)
             hasNextPage = response["Page"]["pageInfo"]["hasNextPage"]
             media = response["Page"]["media"]
             while hasNextPage:
                 page += 1
                 variables['page'] = page
-                response = request(query_anime, variables)
+                response = request(query=query_anime, variables=variables)
                 hasNextPage = response["Page"]["pageInfo"]["hasNextPage"]
                 media.extend(response["Page"]["media"])
     elif search is not None:
         variables['search'] = search
 
-        response = request(query_anime, variables)
+        response = request(query=query_anime, variables=variables)
         if auto:
             media = response["Page"]["media"][0]
         else:
@@ -249,7 +245,7 @@ def get_anime(search=None, ids=None, auto=True, lang=Lang.NATIVE, dump=False):
                     mediass.append(medias)
                     page += 1
                     variables['page'] = page
-                    response = request(query_anime, variables)
+                    response = request(query=query_anime, variables=variables)
                     hasNextPage = response["Page"]["pageInfo"]["hasNextPage"]
                     medias = response["Page"]["media"]
                     ans = ask(search + ' :', [media['title'][str(lang)] for media in medias], index=True, show=True, limit=10)
@@ -280,18 +276,18 @@ def get_anime_entires(ids, uid='None', dump=False):
     if isinstance(ids, int):
         variables['id'] = ids
 
-        response = request(query_anime_entries, variables)
+        response = request(query=query_anime_entries, variables=variables)
         media = response["Page"]["mediaList"][0]
     else:
         variables['ids'] = ids
 
-        response = request(query_anime_entries, variables)
+        response = request(query=query_anime_entries, variables=variables)
         hasNextPage = response["Page"]["pageInfo"]["hasNextPage"]
         media = response["Page"]["mediaList"]
         while hasNextPage:
             page += 1
             variables['page'] = page
-            response = request(query_anime_entries, variables)
+            response = request(query=query_anime_entries, variables=variables)
             hasNextPage = response["Page"]["pageInfo"]["hasNextPage"]
             media.extend(response["Page"]["mediaList"])
 
@@ -307,7 +303,7 @@ def add_anime_to_customlists(id, customlists, is_mediaId=False):
         variables = {'mediaId': id, 'status': 'PLANNING', 'customLists': customlists}
     else:
         variables = {'id': id, 'customLists': customlists}
-    result = request(mutate_anime_entry, variables)
+    result = request(query=mutate_anime_entry, variables=variables)
     if result is None:
         return False
     else:
