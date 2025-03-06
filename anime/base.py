@@ -438,7 +438,7 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
             feed_group[ids[i]] = {}
             dl_rules[ids[i]] = {'addPaused': True,
                                 'affectedFeeds': None,
-                                'assignedCategory': 'Weekly',
+                                'assignedCategory': category,
                                 'enabled': True,
                                 'episodeFilter': '',
                                 'ignoreDays': 0,
@@ -452,8 +452,8 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
                                 'useRegex': False
                                 }
         else:
-            logger_module.debug('Updating RSS for "[%s] %s"', ids[i], titles[i])
-        dl_rules[ids[i]]['savePath'] = os.path.join(save_loc, titles[i])
+            logger_module.debug('Updating RSS for "[%s] %s"', ids[i], special_chars(titles[i], replace=True))
+        dl_rules[ids[i]]['savePath'] = os.path.join(save_loc, special_chars(titles[i], replace=True))
         dl_rules[ids[i]]['affectedFeeds'] = [links[i]]
         feed_group[ids[i]]['url'] = links[i]
     feeds[group] = feed_group

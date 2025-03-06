@@ -162,8 +162,12 @@ user = 'None'
 def request(query, headers_l=None, variables=None):
     next(API_limit)
     if headers_l is None:
-        headers_l = headers
-    response = network.request(endpoint, headers=headers_l, json={'query': query, 'variables': variables})
+        if headers is None:
+            response = network.request(endpoint, json={'query': query, 'variables': variables})
+        else:
+            response = network.request(endpoint, headers=headers, json={'query': query, 'variables': variables})
+    else:
+        response = network.request(endpoint, headers=headers_l, json={'query': query, 'variables': variables})
     if "errors" in response.keys():
         for err in response["errors"]:
             logger_anilist.error('API response NOT OK! Status code = %d  "%s" %s', err["status"], err["message"], str(err['locations'][0]))
