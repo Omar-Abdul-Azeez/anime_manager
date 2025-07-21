@@ -14,7 +14,7 @@ setup(
         'PyQt5>=5.15'
     ],
     python_requires=">=3.9.0",
-    author="Omar Abdul'Azeez",
+    author="Omar Abdul'Aziz",
     entry_points={
         "console_scripts": [
             "anime=anime.__main__:main",
