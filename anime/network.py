@@ -22,7 +22,8 @@ def scrape(url):
     import cfscrape
     scraper = cfscrape.create_scraper()
     data = scraper.get(url)
-    return data
+    data.decode_content = True
+    return data.content
 
 
 def request(url, headers=None, json=None, data=None):

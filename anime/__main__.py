@@ -84,7 +84,7 @@ def main():
                 command_args = vars(args).copy()
                 del command_args['func']
                 args.func(**command_args)
-            except ArgumentError as e:
+            except (ArgumentError, KeyError) as e:
                 parser.print_help()
             inp = input('>')
     else:
@@ -93,5 +93,5 @@ def main():
             command_args = vars(args).copy()
             del command_args['func']
             args.func(**command_args)
-        except ArgumentError as e:
+        except (ArgumentError, KeyError) as e:
             parser.print_help()

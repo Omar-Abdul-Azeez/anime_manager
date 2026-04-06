@@ -274,13 +274,11 @@ def tidy_library(root='.', offline=False, auto=True, shift=False, lang=Lang.NATI
                 if banner:
                     bannerimg = scrape(banner)
                     with open(os.path.join(root, folder, "Cover", id + "b.png"), 'wb') as f:
-                        bannerimg.decode_content = True
-                        f.write(bannerimg.content)
+                        f.write(bannerimg)
             if not os.path.exists(os.path.join(root, folder, "Cover", id + "c.png")):
                 coverimg = scrape(cover)
                 with open(os.path.join(root, folder, "Cover", id + "c.png"), 'wb') as f:
-                    coverimg.decode_content = True
-                    f.write(coverimg.content)
+                    f.write(coverimg)
             cover_folder(os.path.join(root, folder, "Cover", id + "c.png"), os.path.join(root, folder), title)
 
         tmp = dict()
@@ -380,13 +378,11 @@ def create_watching_dir(uid='None', root='.', lang=Lang.NATIVE):
             if banner:
                 bannerimg = scrape(banner)
                 with open(os.path.join(root, folder, "Cover", id + "b.png"), 'wb') as f:
-                    bannerimg.decode_content = True
-                    f.write(bannerimg.content)
+                    f.write(bannerimg)
         if not os.path.exists(os.path.join(root, folder, "Cover", id + "c.png")):
             coverimg = scrape(cover)
             with open(os.path.join(root, folder, "Cover", id + "c.png"), 'wb') as f:
-                coverimg.decode_content = True
-                f.write(coverimg.content)
+                f.write(coverimg)
         cover_folder(os.path.join(root, folder, "Cover", id + "c.png"), os.path.join(root, folder), title)
     logger_module.info("Finished creating current season's folders.")
 
@@ -398,9 +394,13 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
         save_loc = json.load(f)[category]['save_path']
     root = os.path.join(root, 'rss')
     group = 'Anime Manager'
-    create_watching_dir(uid=uid, root=save_loc, lang=lang)
-    with open('response.json', 'r', encoding='utf-8') as f:
-        medias = json.load(f)
+    if os.path.exists('response.json'):
+        logger_module.debug('"response.json" found! Using local data.')
+        with open('response.json', 'r', encoding='utf-8') as f:
+            medias = json.load(f)
+    else:
+        logger_module.debug('No "response.json" found. Requesting from API...')
+        medias = anilist_api.get_current_anime(uid=uid, dump=True)
     with open(os.path.join(root, 'feeds.json'), 'r', encoding='utf-8') as f:
         feeds = json.load(f)
     with open(os.path.join(root, 'download_rules.json'), 'r', encoding='utf-8') as f:
@@ -411,12 +411,15 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
         feed_group = feeds['Anime Manager']
     ids = [str(media['id']) for media in medias]
     if lang is Lang.NATIVE:
-        titles = [media['title']['native'] if media['title']['native'] is not None else media['title']['romaji'] for media in medias]
+        titles = [special_chars(media['title']['native'], replace = True) if media['title']['native'] is not None else special_chars(media['title']['romaji'], replace = False) for media in medias]
+        titles_show = [media['title']['native'] if media['title']['native'] is not None else media['title']['romaji'] for media in medias]
     elif lang is Lang.ROMAJI:
-        titles = [media['title']['romaji'] for media in medias]
+        titles = [special_chars(media['title']['romaji'], replace = False) for media in medias]
+        titles_show = [media['title']['romaji'] for media in medias]
     elif lang is Lang.ENGLISH:
-        titles = [media['title']['english'] if media['title']['english'] is not None else media['title']['romaji'] for media in medias]
-    covers = [os.path.join(save_loc, titles[i], 'Cover', str(ids[i]) + 'c.png') for i in range(len(ids))]
+        titles = [special_chars(media['title']['english'], replace = False) if media['title']['english'] is not None else special_chars(media['title']['romaji'], replace = False) for media in medias]
+        titles_show = [media['title']['english'] if media['title']['english'] is not None else media['title']['romaji'] for media in medias]
+    covers = [scrape(media['coverImage']['extraLarge']) for media in medias]
     links = [''] * len(ids)
     for k, v in list(feed_group.items()):
         try:
@@ -426,15 +429,49 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
             logger_module.warning('Deleting RSS for [%s]', k)
             del feed_group[k]
             del dl_rules[k]
-    links = app.run(ids, titles, covers, links)
+    links = app.run(ids, titles_show, covers, links)
     if links is None:
         logger_module.error('Canceled by user.')
         return
     for i in range(len(ids)):
         if links[i] == '':
             continue
+        id = ids[i]
+        title = titles[i]
+        folder = title
+        logger_module.info('Creating folder for "%s" with lang=%s...', title, lang)
+        if os.path.exists(os.path.join(save_loc, folder)):
+            temp = next(filter(lambda x: regex.match(r'^\d+$', x) is not None,
+                               next(walklevel(os.path.join(save_loc, folder), depth=1))[2]), None)
+            if temp is None:
+                logger_module.warning('Unknown folder "%s" exists! Please remove.', folder)
+            else:
+                if temp == id:
+                    logger_module.debug('Using "%s" for IO operations.', folder)
+                else:
+                    folder = f'[{id}] {title}'
+                    logger_module.debug('Using "%s" for IO operations.', folder)
+        if not os.path.exists(os.path.join(save_loc, folder, "desktop.ini")):
+            banner = medias[i]['bannerImage']
+            cover = covers[i]
+            if not os.path.exists(os.path.join(save_loc, folder)):
+                os.mkdir(os.path.join(save_loc, folder))
+            if not os.path.exists(os.path.join(save_loc, folder, id)):
+                open(os.path.join(save_loc, folder, id), 'w').close()
+            if not os.path.exists(os.path.join(save_loc, folder, "Cover")):
+                os.mkdir(os.path.join(save_loc, folder, "Cover"))
+                open(os.path.join(save_loc, folder, "Cover", ".ignore"), 'w').close()
+            if not os.path.exists(os.path.join(save_loc, folder, "Cover", id + "b.png")):
+                if banner:
+                    bannerimg = scrape(banner)
+                    with open(os.path.join(save_loc, folder, "Cover", id + "b.png"), 'wb') as f:
+                        f.write(bannerimg)
+            if not os.path.exists(os.path.join(save_loc, folder, "Cover", id + "c.png")):
+                with open(os.path.join(save_loc, folder, "Cover", id + "c.png"), 'wb') as f:
+                    f.write(cover)
+            cover_folder(os.path.join(save_loc, folder, "Cover", id + "c.png"), os.path.join(save_loc, folder), title)
         if ids[i] not in feed_group.keys():
-            logger_module.warning('Creating RSS for "[%s] %s"', ids[i], titles[i])
+            logger_module.warning('Creating RSS for "[%s] %s"', id, title)
             feed_group[ids[i]] = {}
             dl_rules[ids[i]] = {'addPaused': True,
                                 'affectedFeeds': None,
@@ -452,8 +489,8 @@ def update_rss(category, uid='None', lang=Lang.NATIVE):
                                 'useRegex': False
                                 }
         else:
-            logger_module.debug('Updating RSS for "[%s] %s"', ids[i], special_chars(titles[i], replace=True))
-        dl_rules[ids[i]]['savePath'] = os.path.join(save_loc, special_chars(titles[i], replace=True))
+            logger_module.debug('Updating RSS for "[%s] %s"', id, title)
+        dl_rules[ids[i]]['savePath'] = os.path.join(save_loc, folder)
         dl_rules[ids[i]]['affectedFeeds'] = [links[i]]
         feed_group[ids[i]]['url'] = links[i]
     feeds[group] = feed_group
